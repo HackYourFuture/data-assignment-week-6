@@ -63,8 +63,11 @@ if [[ -f "$req" ]]; then
   else
     fail "requirements.txt does not pin azure-storage-blob (expected line like 'azure-storage-blob==12.x.y')"
   fi
-  # Pinned line for the Postgres driver
-  if grep -qE "^psycopg2(-binary)?==" "$req"; then
+  # Pinned line for the Postgres driver. Require -binary explicitly: the
+  # source psycopg2 needs libpq-dev + gcc, which python:3.11-slim does not
+  # ship, so accepting bare psycopg2 here would give a student credit for
+  # a requirements.txt that breaks `docker build`.
+  if grep -qE "^psycopg2-binary==" "$req"; then
     ((l2 += 5)); pass "requirements.txt pins psycopg2-binary"
   else
     fail "requirements.txt does not pin psycopg2-binary (expected line like 'psycopg2-binary==2.x.y')"
@@ -102,9 +105,10 @@ pass "Level 3: Dockerfile ($l3/10 pts)"
 l4=0
 py="$REPO_ROOT/src/pipeline.py"
 if [[ -f "$py" ]]; then
-  # 4a: reads both env vars
-  env_count=$(grep -cE 'os\.environ\[.*(POSTGRES_URL|AZURE_STORAGE_CONNECTION_STRING).*\]|os\.environ\.get\(.*(POSTGRES_URL|AZURE_STORAGE_CONNECTION_STRING).*\)|os\.getenv\(.*(POSTGRES_URL|AZURE_STORAGE_CONNECTION_STRING).*\)' "$py" || true)
-  if [[ "$env_count" -ge 2 ]]; then
+  # 4a: reads both env vars. Check each var name independently rather than
+  # counting matching lines: a one-line tuple read or a dict comprehension
+  # would otherwise false-fail a correct submission.
+  if grep -qE "POSTGRES_URL" "$py" && grep -qE "AZURE_STORAGE_CONNECTION_STRING" "$py"; then
     ((l4 += 5)); pass "pipeline.py reads POSTGRES_URL and AZURE_STORAGE_CONNECTION_STRING from env"
   else
     fail "pipeline.py does not read both POSTGRES_URL and AZURE_STORAGE_CONNECTION_STRING from os.environ"
