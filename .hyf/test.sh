@@ -38,19 +38,19 @@ for f in "${required_files[@]}"; do
     pass "found $f"
   else
     fail "missing $f"
-    ((missing += 1))
+    missing=$((missing + 1))
   fi
 done
 if [[ -d "$REPO_ROOT/docs" ]]; then
   pass "found docs/ directory"
 else
   fail "missing docs/ directory (Task 5 screenshot lives here)"
-  ((missing += 1))
+  missing=$((missing + 1))
 fi
 if [[ "$missing" -eq 0 ]]; then
   l1=10
 fi
-((score += l1))
+score=$((score + l1))
 pass "Level 1: required files ($l1/10 pts)"
 
 # ── Level 2 (10 pts): pinned dependencies ───────────────────────────────────
@@ -59,7 +59,7 @@ req="$REPO_ROOT/requirements.txt"
 if [[ -f "$req" ]]; then
   # Pinned line for the blob SDK
   if grep -qE "^azure-storage-blob==" "$req"; then
-    ((l2 += 5)); pass "requirements.txt pins azure-storage-blob"
+    l2=$((l2 + 5)); pass "requirements.txt pins azure-storage-blob"
   else
     fail "requirements.txt does not pin azure-storage-blob (expected line like 'azure-storage-blob==12.x.y')"
   fi
@@ -68,12 +68,12 @@ if [[ -f "$req" ]]; then
   # ship, so accepting bare psycopg2 here would give a student credit for
   # a requirements.txt that breaks `docker build`.
   if grep -qE "^psycopg2-binary==" "$req"; then
-    ((l2 += 5)); pass "requirements.txt pins psycopg2-binary"
+    l2=$((l2 + 5)); pass "requirements.txt pins psycopg2-binary"
   else
     fail "requirements.txt does not pin psycopg2-binary (expected line like 'psycopg2-binary==2.x.y')"
   fi
 fi
-((score += l2))
+score=$((score + l2))
 pass "Level 2: pinned dependencies ($l2/10 pts)"
 
 # ── Level 3 (10 pts): Dockerfile layer order ────────────────────────────────
@@ -81,24 +81,24 @@ l3=0
 df="$REPO_ROOT/Dockerfile"
 if [[ -f "$df" ]]; then
   if grep -qE "^FROM[[:space:]]+python:3\.11" "$df"; then
-    ((l3 += 3)); pass "Dockerfile uses a python:3.11 base image"
+    l3=$((l3 + 3)); pass "Dockerfile uses a python:3.11 base image"
   else
     fail "Dockerfile does not use a python:3.11 base image"
   fi
   req_line=$(grep -nE "^COPY[[:space:]].*requirements" "$df" | head -1 | cut -d: -f1 || echo 0)
   src_line=$(grep -nE "^COPY[[:space:]].*src" "$df" | head -1 | cut -d: -f1 || echo 9999)
   if [[ "$req_line" -gt 0 && "$src_line" -lt 9999 && "$req_line" -lt "$src_line" ]]; then
-    ((l3 += 5)); pass "Dockerfile copies requirements before src/ (layer cache stays warm)"
+    l3=$((l3 + 5)); pass "Dockerfile copies requirements before src/ (layer cache stays warm)"
   else
     fail "Dockerfile does not copy requirements.txt before src/ (cache-unfriendly)"
   fi
   if grep -qE "^CMD" "$df" && ! grep -qE 'CMD.*Task 4 still pending' "$df"; then
-    ((l3 += 2)); pass "Dockerfile has a real CMD instruction"
+    l3=$((l3 + 2)); pass "Dockerfile has a real CMD instruction"
   else
     fail "Dockerfile CMD is still the placeholder — replace it with the pipeline entry point"
   fi
 fi
-((score += l3))
+score=$((score + l3))
 pass "Level 3: Dockerfile ($l3/10 pts)"
 
 # ── Level 4 (15 pts): pipeline shape (env vars, closing, Azure logger) ──────
@@ -109,19 +109,19 @@ if [[ -f "$py" ]]; then
   # counting matching lines: a one-line tuple read or a dict comprehension
   # would otherwise false-fail a correct submission.
   if grep -qE "POSTGRES_URL" "$py" && grep -qE "AZURE_STORAGE_CONNECTION_STRING" "$py"; then
-    ((l4 += 5)); pass "pipeline.py reads POSTGRES_URL and AZURE_STORAGE_CONNECTION_STRING from env"
+    l4=$((l4 + 5)); pass "pipeline.py reads POSTGRES_URL and AZURE_STORAGE_CONNECTION_STRING from env"
   else
     fail "pipeline.py does not read both POSTGRES_URL and AZURE_STORAGE_CONNECTION_STRING from os.environ"
   fi
   # 4b: closing() pattern from contextlib (Chapter 4 deliverable)
   if grep -qE "from contextlib import closing" "$py" && grep -qE "with closing\(" "$py"; then
-    ((l4 += 5)); pass "pipeline.py uses contextlib.closing() to wrap the Postgres connection"
+    l4=$((l4 + 5)); pass "pipeline.py uses contextlib.closing() to wrap the Postgres connection"
   else
     fail "pipeline.py does not use 'from contextlib import closing' + 'with closing(...)' (Chapter 4 pattern)"
   fi
   # 4c: silences Azure SDK logger noise (Chapter 5 deliverable)
   if grep -qE 'logging\.getLogger\(.azure.\)\.setLevel' "$py"; then
-    ((l4 += 5)); pass "pipeline.py silences the azure SDK logger"
+    l4=$((l4 + 5)); pass "pipeline.py silences the azure SDK logger"
   else
     fail "pipeline.py does not silence the azure SDK logger (logging.getLogger(\"azure\").setLevel(...))"
   fi
@@ -130,7 +130,7 @@ if [[ -f "$py" ]]; then
     warn "pipeline.py still contains 'raise NotImplementedError' — finish the stubs before submitting"
   fi
 fi
-((score += l4))
+score=$((score + l4))
 pass "Level 4: pipeline shape ($l4/15 pts)"
 
 # ── Level 5 (15 pts): idempotent upsert ─────────────────────────────────────
@@ -139,7 +139,7 @@ if [[ -f "$py" ]]; then
   # Match the SQL keyword pair in one line (covers single-line or formatted SQL)
   # plus a fallback that allows them to be on separate lines.
   if grep -ciE "ON CONFLICT" "$py" >/dev/null && grep -ciE "DO UPDATE" "$py" >/dev/null; then
-    ((l5 += 10)); pass "pipeline.py uses an upsert (ON CONFLICT ... DO UPDATE)"
+    l5=$((l5 + 10)); pass "pipeline.py uses an upsert (ON CONFLICT ... DO UPDATE)"
   else
     fail "pipeline.py does not use ON CONFLICT ... DO UPDATE (idempotent upsert)"
   fi
@@ -156,12 +156,12 @@ ok = any("%s" in chunk for chunk in hits)
 sys.exit(0 if ok else 1)
 PYCHECK
   then
-    ((l5 += 5)); pass "pipeline.py uses %s placeholders in execute() (parameterised SQL)"
+    l5=$((l5 + 5)); pass "pipeline.py uses %s placeholders in execute() (parameterised SQL)"
   else
     fail "pipeline.py does not use %s placeholders for parameterised SQL"
   fi
 fi
-((score += l5))
+score=$((score + l5))
 pass "Level 5: idempotent upsert ($l5/15 pts)"
 
 # ── Level 6 (10 pts): connection string + SDK use ───────────────────────────
@@ -169,17 +169,17 @@ l6=0
 # sslmode=require somewhere visible: .env.example or pipeline default. The
 # point is to show the student knows Azure Postgres needs SSL.
 if grep -rqE "sslmode=require" "$REPO_ROOT" --include="*.py" --include=".env.example" --include="*.md" --exclude-dir=".git" 2>/dev/null; then
-  ((l6 += 5)); pass "connection string includes sslmode=require"
+  l6=$((l6 + 5)); pass "connection string includes sslmode=require"
 else
   fail "no mention of sslmode=require in the repo — Azure Postgres rejects connections without it"
 fi
 # Uses the Azure Blob SDK (not raw HTTP or az CLI shellouts)
 if [[ -f "$py" ]] && grep -qE "BlobServiceClient|from azure\.storage\.blob" "$py"; then
-  ((l6 += 5)); pass "pipeline.py uses the azure-storage-blob SDK (BlobServiceClient)"
+  l6=$((l6 + 5)); pass "pipeline.py uses the azure-storage-blob SDK (BlobServiceClient)"
 else
   fail "pipeline.py does not use the azure-storage-blob SDK (BlobServiceClient)"
 fi
-((score += l6))
+score=$((score + l6))
 pass "Level 6: connection + SDK ($l6/10 pts)"
 
 # ── Level 7 (10 pts): AI_ASSIST.md filled in ────────────────────────────────
@@ -213,7 +213,7 @@ if [[ -f "$ai" ]]; then
     fi
   fi
 fi
-((score += l7))
+score=$((score + l7))
 pass "Level 7: AI report ($l7/10 pts)"
 
 # ── Level 8 (10 pts): README verification section + image link ──────────────
@@ -242,7 +242,7 @@ if [[ -f "$rm" ]]; then
     fi
   fi
 fi
-((score += l8))
+score=$((score + l8))
 pass "Level 8: README verification ($l8/10 pts)"
 
 # ── Level 9 (10 pts): Execution-history screenshot present ──────────────────
@@ -260,9 +260,9 @@ if [[ -n "$shot" ]]; then
   size=$(wc -c < "$shot" | tr -d ' ')
   if [[ "$size" -gt 5000 ]]; then
     if [[ "$shot" == *.png ]]; then
-      ((l9 += 10)); pass "execution-history screenshot present at $(basename "$shot") (${size} bytes)"
+      l9=$((l9 + 10)); pass "execution-history screenshot present at $(basename "$shot") (${size} bytes)"
     else
-      ((l9 += 5)); warn "execution-history screenshot present at $(basename "$shot") but should be .png (partial credit, ${size} bytes)"
+      l9=$((l9 + 5)); warn "execution-history screenshot present at $(basename "$shot") but should be .png (partial credit, ${size} bytes)"
     fi
   else
     fail "execution-history screenshot at $(basename "$shot") looks too small to be a real screenshot (${size} bytes)"
@@ -270,12 +270,12 @@ if [[ -n "$shot" ]]; then
 else
   fail "docs/execution_history.png not found (Task 5 deliverable)"
 fi
-((score += l9))
+score=$((score + l9))
 pass "Level 9: execution screenshot ($l9/10 pts)"
 
 # ── Code hygiene warnings (no points; just feedback) ────────────────────────
-check_no_print_statements "$REPO_ROOT/src" "src/"
-check_gitignore_python "$REPO_ROOT/.gitignore"
+check_no_print_statements "$REPO_ROOT/src" "src/" || true
+check_gitignore_python "$REPO_ROOT/.gitignore" || true
 
 # ── Final result ────────────────────────────────────────────────────────────
 print_results "Week 6 Autograder"
